@@ -5,6 +5,10 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  id-token: write
+  contents: read
+
 env:
   ACR_NAME: kolyaacr
   AKS_CLUSTER_NAME: atom-demo-cluster
