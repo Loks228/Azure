@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: azure-web-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: azure-web-app
+  template:
+    metadata:
+      labels:
+        app: azure-web-app
+    spec:
+      containers:
+      - name: azure-web-app
+        image: kolyaacr.azurecr.io/azure-web-app:latest
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: azure-web-app-service
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 80
+  selector:
+    app: azure-web-app 
