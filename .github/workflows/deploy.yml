@@ -2,18 +2,29 @@ name: CI/CD to AKS
 
 on:
   push:
-    branches: [ main ]
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
   workflow_dispatch:
 
 env:
   REGISTRY: kolyaacr.azurecr.io
   IMAGE_NAME: azure-web-app
   NAMESPACE: default
+  DEPLOYMENT_NAME: azure-web-app   # ← обнови на фактическое имя Deployment
+  CONTAINER_NAME: azure-web-app    # ← обнови на фактическое имя контейнера в Deployment
 
 jobs:
   build-test-push-deploy:
     runs-on: ubuntu-latest
     steps:
+    - name: Show GitHub context
+      run: |
+        echo "event: ${{ github.event_name }}"
+        echo "ref:   ${{ github.ref }}"
+        echo "sha:   ${{ github.sha }}"
+        echo "repo:  ${{ github.repository }}"
+
     - name: Checkout
       uses: actions/checkout@v3
 
@@ -45,14 +56,14 @@ jobs:
       env:
         KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
 
-    - name: Update deployment image (rolling update)
+    - name: Apply manifests with current image tag
       run: |
         set -e
-        kubectl -n ${NAMESPACE} set image deployment/azure-web-app azure-web-app=${REGISTRY}/${IMAGE_NAME}:${{ github.sha }} || true
-        kubectl -n ${NAMESPACE} rollout status deployment/azure-web-app --timeout=120s || true
-
-    - name: Fallback apply manifests (first-time deploy)
-      run: |
         sed -i "s|image: .*|image: ${REGISTRY}/${IMAGE_NAME}:${{ github.sha }}|" deployment.yaml
         kubectl apply -f deployment.yaml
-        kubectl -n ${NAMESPACE} rollout status deployment/azure-web-app --timeout=180s 
+
+    - name: Rollout update (by explicit names)
+      run: |
+        set -e
+        kubectl -n ${NAMESPACE} set image deployment/${DEPLOYMENT_NAME} ${CONTAINER_NAME}=${REGISTRY}/${IMAGE_NAME}:${{ github.sha }} || true
+        kubectl -n ${NAMESPACE} rollout status deployment/${DEPLOYMENT_NAME} --timeout=180s || true 
