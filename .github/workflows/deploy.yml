@@ -1,36 +1,58 @@
-name: Build and Deploy to AKS
+name: CI/CD to AKS
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  REGISTRY: kolyaacr.azurecr.io
+  IMAGE_NAME: azure-web-app
+  NAMESPACE: default
 
 jobs:
-  build-and-deploy:
+  build-test-push-deploy:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout code
+    - name: Checkout
       uses: actions/checkout@v3
 
-    - name: Azure Login
-      uses: azure/login@v1
-      with:
-        client-id: ${{ secrets.AZURE_CLIENT_ID }}
-        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-    - name: Build Docker image
+    - name: Basic tests
       run: |
-        docker build -t ${{ secrets.ACR_LOGIN_SERVER }}/myapp:${{ github.sha }} .
-        echo "${{ secrets.AZURE_CLIENT_SECRET }}" | docker login ${{ secrets.ACR_LOGIN_SERVER }} -u ${{ secrets.AZURE_CLIENT_ID }} --password-stdin
-        docker push ${{ secrets.ACR_LOGIN_SERVER }}/myapp:${{ github.sha }}
+        test -f index.html
+        grep -qi "<html" index.html
 
-    - name: Get AKS credentials
-      run: |
-        az aks get-credentials --resource-group ${{ secrets.AKS_RESOURCE_GROUP }} --name ${{ secrets.AKS_CLUSTER_NAME }} --overwrite-existing
+    - name: Docker login to ACR
+      run: echo "$ACR_PASSWORD" | docker login ${REGISTRY} -u "$ACR_USERNAME" --password-stdin
+      env:
+        ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+        ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
 
-    - name: Deploy to AKS
+    - name: Build image
       run: |
-        kubectl set image deployment/myapp-deployment myapp=${{ secrets.ACR_LOGIN_SERVER }}/myapp:${{ github.sha }}
-        kubectl rollout status deployment/myapp-deployment
+        docker build -t ${REGISTRY}/${IMAGE_NAME}:latest -t ${REGISTRY}/${IMAGE_NAME}:${{ github.sha }} .
+
+    - name: Push image
+      run: |
+        docker push ${REGISTRY}/${IMAGE_NAME}:latest
+        docker push ${REGISTRY}/${IMAGE_NAME}:${{ github.sha }}
+
+    - name: Configure kubectl context from secret
+      run: |
+        mkdir -p $HOME/.kube
+        echo "$KUBE_CONFIG" > $HOME/.kube/config
+        chmod 600 $HOME/.kube/config
+      env:
+        KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+
+    - name: Update deployment image (rolling update)
+      run: |
+        set -e
+        kubectl -n ${NAMESPACE} set image deployment/azure-web-app azure-web-app=${REGISTRY}/${IMAGE_NAME}:${{ github.sha }} || true
+        kubectl -n ${NAMESPACE} rollout status deployment/azure-web-app --timeout=120s || true
+
+    - name: Fallback apply manifests (first-time deploy)
+      run: |
+        sed -i "s|image: .*|image: ${REGISTRY}/${IMAGE_NAME}:${{ github.sha }}|" deployment.yaml
+        kubectl apply -f deployment.yaml
+        kubectl -n ${NAMESPACE} rollout status deployment/azure-web-app --timeout=180s 

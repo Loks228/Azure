@@ -14,10 +14,13 @@ spec:
     spec:
       containers:
       - name: azure-web-app
-        image: kolyaacr.azurecr.io/azure-web-app:latest
+        image: lordloks/azure-web-app:latest
         ports:
         - containerPort: 80
----
+      # --- Вот здесь вы указываете ноду для деплоя ---
+      nodeSelector:
+        disktype: ssd
+      # -----------------------------------------------
 apiVersion: v1
 kind: Service
 metadata:
