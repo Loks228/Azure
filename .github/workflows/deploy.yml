@@ -2,17 +2,15 @@ name: CI/CD to AKS
 
 on:
   push:
-    branches: ["**"]
-  pull_request:
-    branches: ["**"]
+    branches: ["main"]
   workflow_dispatch:
 
 env:
   REGISTRY: kolyaacr.azurecr.io
   IMAGE_NAME: azure-web-app
-  NAMESPACE: default
-  DEPLOYMENT_NAME: azure-web-app   # ← обнови на фактическое имя Deployment
-  CONTAINER_NAME: azure-web-app    # ← обнови на фактическое имя контейнера в Deployment
+  NAMESPACE: azure-web
+  DEPLOYMENT_NAME: azure-web-app   # ← обнови на фактическое имя Deployment при необходимости
+  CONTAINER_NAME: azure-web-app    # ← обнови на фактическое имя контейнера при необходимости
 
 jobs:
   build-test-push-deploy:
@@ -56,11 +54,15 @@ jobs:
       env:
         KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
 
-    - name: Apply manifests with current image tag
+    - name: Ensure namespace exists
+      run: |
+        kubectl get ns ${NAMESPACE} || kubectl create ns ${NAMESPACE}
+
+    - name: Apply manifests with current image tag (namespaced)
       run: |
         set -e
         sed -i "s|image: .*|image: ${REGISTRY}/${IMAGE_NAME}:${{ github.sha }}|" deployment.yaml
-        kubectl apply -f deployment.yaml
+        kubectl -n ${NAMESPACE} apply -f deployment.yaml
 
     - name: Rollout update (by explicit names)
       run: |
