@@ -16,7 +16,6 @@ spec:
       containers:
       - name: azure-web-app
         image: lordloks/azure-web-app:latest
-        args: ["nginx","-g","daemon off;"]
         ports:
         - containerPort: 80
         readinessProbe:
