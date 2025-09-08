@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: azure-web-app
+  namespace: azure-web
 spec:
   replicas: 1
   selector:
@@ -17,10 +18,7 @@ spec:
         image: lordloks/azure-web-app:latest
         ports:
         - containerPort: 80
-      # --- Вот здесь вы указываете ноду для деплоя ---
-      nodeSelector:
-        disktype: ssd
-      # -----------------------------------------------
+---
 apiVersion: v1
 kind: Service
 metadata:
