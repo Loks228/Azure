@@ -13,8 +13,6 @@ spec:
       labels:
         app: azure-web-app
     spec:
-      imagePullSecrets:
-      - name: acr-pull
       containers:
       - name: azure-web-app
         image: lordloks/azure-web-app:latest
